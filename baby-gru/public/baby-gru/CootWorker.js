@@ -788,8 +788,12 @@ onmessage = function (e) {
     }
 
     if (e.data.message === 'coot_command') {
-        const { returnType, command, commandArgs, message, messageId, myTimeStamp } = e.data
+        const { returnType, command, commandArgs, messageId } = e.data
         try {
+            
+            const timeMainThreadToWorker = `Message from main thread to worker took ${Date.now() - e.data.myTimeStamp } ms (${command}) - (${messageId.slice(0, 5)})`
+            
+            let startTime = new Date()
 
             /* A debug message to show tht commands are reachng CootWorker
             postMessage({ consoleMessage: `Received ${command} with args ${commandArgs}` })
@@ -827,7 +831,11 @@ onmessage = function (e) {
                 cootResult = molecules_container[command](...commandArgs)
             }
 
+            let endTime = new Date()
+            let timeDiff = endTime - startTime
+            const timelibcootAPI = `libcootAPI command ${command} took ${timeDiff} ms  - (${messageId.slice(0, 5)})`
             let returnResult;
+            startTime = new Date()
 
             switch (returnType) {
                 case 'instanced_mesh_perm':
@@ -890,12 +898,18 @@ onmessage = function (e) {
                     break;
             }
 
+            endTime = new Date()
+            timeDiff = endTime - startTime
+            const timeconvertingWASMJS = `conversion of output of ${command} to JS data took ${timeDiff} ms  - (${messageId.slice(0, 5)})`
+            
             postMessage({
-                returnType, command, message, messageId, myTimeStamp,
+                timelibcootAPI, timeconvertingWASMJS, timeMainThreadToWorker,
+                messageId, messageSendTime: Date.now(),
                 consoleMessage: `Completed ${command} in ${Date.now() - e.data.myTimeStamp} ms`,
                 result: { status: 'Completed', result: returnResult }
             })
         }
+
         catch (err) {
             console.log(err)
             postMessage({

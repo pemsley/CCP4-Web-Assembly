@@ -2,10 +2,9 @@ import { useEffect, useState, useRef, useCallback, useMemo, Fragment } from "rea
 import { Card, Form, Button, Row, Col, DropdownButton, Stack } from "react-bootstrap";
 import { doDownload, getNameLabel } from '../utils/MoorhenUtils';
 import { VisibilityOffOutlined, VisibilityOutlined, ExpandMoreOutlined, ExpandLessOutlined, DownloadOutlined, Settings } from '@mui/icons-material';
+import { MoorhenMapSettingsMenuItem, MoorhenMapWeightMenuItem, MoorhenDeleteDisplayObjectMenuItem, MoorhenRenameDisplayObjectMenuItem } from "./MoorhenMenuItem";
 import MoorhenSlider from "./MoorhenSlider";
-import { MoorhenDeleteDisplayObjectMenuItem, MoorhenRenameDisplayObjectMenuItem } from "./MoorhenMenuItem";
 import { MenuItem } from "@mui/material";
-import { MoorhenMapSettingsMenuItem } from "./MoorhenMenuItem";
 
 export const MoorhenMapCard = (props) => {
     const [cootContour, setCootContour] = useState(true)
@@ -136,7 +135,7 @@ export const MoorhenMapCard = (props) => {
         }
     }
 
-    const handleUpdateMapCallback = useCallback(e => {
+    const handleOriginUpdate = useCallback(e => {
         nextOrigin.current = [...e.detail.origin.map(coord => -coord)]
         props.map.contourLevel = mapContourLevel
         props.map.mapRadius = mapRadius
@@ -182,17 +181,17 @@ export const MoorhenMapCard = (props) => {
     }, [currentName]);
 
     useEffect(() => {
-        document.addEventListener("mapUpdate", handleUpdateMapCallback);
+        document.addEventListener("originUpdate", handleOriginUpdate);
         document.addEventListener("wheelContourLevelChanged", handleWheelContourLevelCallback);
         document.addEventListener("newMapContour", handleNewMapContour);
         document.addEventListener("mapRadiusChanged", handleRadiusChangeCallback);
         return () => {
-            document.removeEventListener("mapUpdate", handleUpdateMapCallback);
+            document.removeEventListener("originUpdate", handleOriginUpdate);
             document.removeEventListener("wheelContourLevelChanged", handleWheelContourLevelCallback);
             document.removeEventListener("newMapContour", handleNewMapContour);
             document.removeEventListener("mapRadiusChanged", handleRadiusChangeCallback);
         };
-    }, [handleUpdateMapCallback, props.activeMap?.molNo]);
+    }, [handleOriginUpdate, props.activeMap?.molNo]);
 
     useEffect(() => {
         props.map.setAlpha(mapOpacity,props.glRef)
@@ -215,7 +214,7 @@ export const MoorhenMapCard = (props) => {
     return <Card className="px-0"  style={{marginBottom:'0.5rem', padding:'0'}} key={props.map.molNo}>
         <Card.Header style={{padding: '0.1rem'}}>
             <Stack gap={2} direction='horizontal'>
-                <Col className='align-items-center' style={{display:'flex', justifyContent:'left'}}>
+                <Col className='align-items-center' style={{display:'flex', justifyContent:'left', color: props.isDark ? 'white' : 'black'}}>
                         {getNameLabel(props.map)}
                         <img 
                             className="baby-gru-map-icon"
@@ -230,7 +229,7 @@ export const MoorhenMapCard = (props) => {
             </Stack>
         </Card.Header>
         <Card.Body style={{display: isCollapsed ? 'none' : ''}}>
-            <Row className="align-items-center" style={{ height: '100%', justifyContent:'between', display:'flex'}}>
+            <Row className="align-items-center" style={{ height: '100%', justifyContent:'between', display:'flex', color: props.isDark ? 'white' : 'black'}}>
                 <Col className="border-left" style={{justifyContent:'left', display:'flex'}}> 
                 <Row>
                         <Form.Check checked={props.map === props.activeMap}

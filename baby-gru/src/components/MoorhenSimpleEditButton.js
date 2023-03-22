@@ -47,9 +47,10 @@ const MoorhenSimpleEditButton = forwardRef((props, buttonRef) => {
                 }
             }
             molecule.setAtomsDirty(true)
-            molecule.redraw(props.glRef)
-            const mapUpdateEvent = new CustomEvent("mapUpdate", { detail: { origin: props.glRef.current.origin, modifiedMolecule: molecule.molNo } })
-            document.dispatchEvent(mapUpdateEvent)
+            // FIXME: await here is only necessary to show timings
+            await molecule.redraw(props.glRef)
+            const scoresUpdateEvent = new CustomEvent("scoresUpdate", { detail: { origin: props.glRef.current.origin, modifiedMolecule: molecule.molNo } })
+            document.dispatchEvent(scoresUpdateEvent)
             if (props.onExit) {
                 props.onExit(molecule, chosenAtom, result)
             }
@@ -69,12 +70,19 @@ const MoorhenSimpleEditButton = forwardRef((props, buttonRef) => {
                         props.setSelectedButtonIndex(null)
                     }
                     if (props.cootCommand) {
+
                         result = await props.commandCentre.current.cootCommand({
                             returnType: props.returnType,
                             command: props.cootCommand,
                             commandArgs: props.formatArgs(molecule, chosenAtom, localParameters),
                             changesMolecules: props.changesMolecule ? [molecule.molNo] : []
                         }, true)
+
+                        console.log(result.data.timeMainThreadToWorker)
+                        console.log(result.data.timelibcootAPI)
+                        console.log(result.data.timeconvertingWASMJS)
+                        console.log(`Message from worker back to main thread took ${Date.now() - result.data.messageSendTime} ms (${props.cootCommand}) - (${result.data.messageId.slice(0, 5)})`)
+
                     } else if (props.nonCootCommand) {
                         result = await props.nonCootCommand(molecule, chosenAtom, localParameters)
                     }
@@ -656,8 +664,8 @@ export const MoorhenRotateTranslateZoneButton = (props) => {
         fragmentMolecule.current.delete(glRef)
         chosenMolecule.current.unhideAll(glRef)
         setShowAccept(false)
-        const mapUpdateEvent = new CustomEvent("mapUpdate", { detail: { origin: glRef.current.origin, modifiedMolecule: chosenMolecule.current.molNo } })
-        document.dispatchEvent(mapUpdateEvent)
+        const scoresUpdateEvent = new CustomEvent("scoresUpdate", { detail: { origin: glRef.current.origin, modifiedMolecule: chosenMolecule.current.molNo } })
+        document.dispatchEvent(scoresUpdateEvent)
     }, [changeMolecules, glRef])
 
     const rejectTransform = useCallback(async (e) => {
@@ -944,8 +952,8 @@ export const MoorhenAddSimpleButton = (props) => {
         if (selectedMolecule) {
             await selectedMolecule.addLigandOfType(value, props.glRef.current.origin.map(coord => -coord), props.glRef)
             props.setSelectedButtonIndex(null)
-            const mapUpdateEvent = new CustomEvent("mapUpdate", { detail: { origin: props.glRef.current.origin, modifiedMolecule: selectedMolecule.molNo } })
-            document.dispatchEvent(mapUpdateEvent)    
+            const scoresUpdateEvent = new CustomEvent("scoresUpdate", { detail: { origin: props.glRef.current.origin, modifiedMolecule: selectedMolecule.molNo } })
+            document.dispatchEvent(scoresUpdateEvent)    
         }
     }, [props.molecules, props.glRef])
 

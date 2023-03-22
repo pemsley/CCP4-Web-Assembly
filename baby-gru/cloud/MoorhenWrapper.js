@@ -21,6 +21,21 @@ export default class MoorhenWrapper {
     this.preferences = null
     this.exportCallback = () => {}
     reportWebVitals()
+    this.createModule()
+  }
+
+  createModule() {
+    createCCP4Module({
+      print(t) { console.log(["output", t]) },
+      printErr(t) { console.log(["output", t]); }
+    })
+    .then(function (CCP4Mod) {
+      window.CCP4Module = CCP4Mod;
+    })
+    .catch((e) => {
+      console.log("CCP4 problem :(");
+      console.log(e);
+    });
   }
 
   setWorkMode(mode='build') {
@@ -108,6 +123,16 @@ export default class MoorhenWrapper {
     }
   }
 
+  addStyleSheet() {
+    const head = document.head;
+    const style = document.createElement("link");
+    style.href = `${this.urlPrefix}/moorhen.css`
+    style.rel = "stylesheet";
+    style.async = true
+    style.type = 'text/css'
+    head.appendChild(style);
+  }
+
   async loadMtzData(inputFile, mapName, selectedColumns) {
     const newMap = new MoorhenMap(this.controls.commandCentre)
     return new Promise(async (resolve, reject) => {
@@ -118,23 +143,23 @@ export default class MoorhenWrapper {
         return resolve(newMap)
       } catch (err) {
         console.log(`Cannot fetch mtz from ${inputFile}`)
-        return reject(err)
+        return resolve(null)
       }
     })
   }
 
-  async loadPdbData(inputFile, molName) {
+  async loadPdbData(inputFile, molName, timeout=6000) {
     const newMolecule = new MoorhenMolecule(this.controls.commandCentre, this.monomerLibrary)
     return new Promise(async (resolve, reject) => {
         try {
-            await newMolecule.loadToCootFromURL(inputFile, molName)
+            await newMolecule.loadToCootFromURL(inputFile, molName, timeout)
             await newMolecule.fetchIfDirtyAndDraw('CBs', this.controls.glRef)
             this.controls.changeMolecules({ action: "Add", item: newMolecule })
             newMolecule.centreOn(this.controls.glRef, null, false)
             return resolve(newMolecule)
         } catch (err) {
             console.log(`Cannot fetch molecule from ${inputFile}`)
-            return reject(err)
+            return resolve(null)
         }   
     })
   }
@@ -144,9 +169,8 @@ export default class MoorhenWrapper {
       this.inputFiles.map(file => {
         if (file.type === 'pdb') {
           return this.loadPdbData(...file.args)
-        } else if (file.type === 'mtz') {
-          return this.loadMtzData(...file.args)
-        }
+        } 
+        return this.loadMtzData(...file.args)
     }))
 
     setTimeout(() => {
@@ -175,11 +199,17 @@ export default class MoorhenWrapper {
 
   async updateMolecules() {
     const moleculeInputFiles = this.inputFiles.filter(file => file.type === 'pdb')
-    await Promise.all(
-      this.controls.moleculesRef.current.map((molecule, index) => {
-        return molecule.replaceModelWithFile(moleculeInputFiles[index].args[0], this.controls.glRef)
-      })  
-    )
+    if (moleculeInputFiles.length === this.controls.moleculesRef.current.length) {
+      await Promise.all(
+        this.controls.moleculesRef.current.map((molecule, index) => {
+          return molecule.replaceModelWithFile(moleculeInputFiles[index].args[0], this.controls.glRef)
+        })  
+      )  
+    } else {
+      await Promise.all(
+        moleculeInputFiles.map(file => this.loadPdbData(...file.args))
+      )
+    }
   }
 
   waitForInitialisation() {
@@ -214,12 +244,53 @@ export default class MoorhenWrapper {
     );
   }
 
+  async handleOriginUpdate(evt){
+    await Promise.all(
+      this.controls.mapsRef.current.map(map => {
+        return map.doCootContour(
+          this.controls.glRef, ...evt.detail.origin.map(coord => -coord), map.mapRadius, map.contourLevel
+        )     
+      })
+    )
+  }
+
+  async handleRadiusChangeCallback(evt){
+    await Promise.all(
+      this.controls.mapsRef.current.map(map => {
+        const newRadius = map.mapRadius + parseInt(evt.detail.factor)
+        map.mapRadius = newRadius
+        return map.doCootContour(
+          this.controls.glRef, ...this.controls.glRef.current.origin.map(coord => -coord), newRadius, map.contourLevel
+        )     
+      })
+    )
+  }
+
+  async handleWheelContourLevelCallback(evt){
+    await Promise.all(
+      this.controls.mapsRef.current.map(map => {
+        const newLevel = evt.detail.factor > 1 ? map.contourLevel + 0.1 : map.contourLevel - 0.1
+        map.contourLevel = newLevel
+        return map.doCootContour(
+          this.controls.glRef, ...this.controls.glRef.current.origin.map(coord => -coord), map.mapRadius, newLevel
+        )     
+      })
+    )
+  }
+
+  addMapUpdateEventListeners() {
+    document.addEventListener("originUpdate", this.handleOriginUpdate.bind(this))
+    document.addEventListener("wheelContourLevelChanged", this.handleWheelContourLevelCallback.bind(this))
+    document.addEventListener("mapRadiusChanged", this.handleRadiusChangeCallback.bind(this))
+}
+
   async start() {
     if (this.preferences) {
       await this.importPreferences(this.preferences)
     }
 
     this.renderMoorhen()
+    this.addStyleSheet()
     await this.waitForInitialisation()
     await this.loadInputFiles()
     
@@ -231,9 +302,10 @@ export default class MoorhenWrapper {
           )
         })  
       )
+      this.addMapUpdateEventListeners()
     }
     
-    if(this.updateInterval !== null) {
+    if (this.updateInterval !== null) {
       this.startMoleculeUpdates()
     }
 

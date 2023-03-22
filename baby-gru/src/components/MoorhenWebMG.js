@@ -113,11 +113,25 @@ export const MoorhenWebMG = forwardRef((props, glRef) => {
     const handleScoreUpdates = useCallback(async (e) => {
         if (e.detail?.modifiedMolecule !== null && connectedMolNo && connectedMolNo.molecule === e.detail.modifiedMolecule) {
             
+            await Promise.all(
+                props.maps.filter(map => connectedMolNo.uniqueMaps.includes(map.molNo)).map(map => {
+                    return map.doCootContour(glRef,
+                        ...glRef.current.origin.map(coord => -coord),
+                        map.mapRadius,
+                        map.contourLevel)
+                })
+            )
+            
             const currentScores = await props.commandCentre.current.cootCommand({
                 returnType: "r_factor_stats",
                 command: "get_r_factor_stats",
                 commandArgs: [],
             }, true)
+
+            console.log(currentScores.data.timeMainThreadToWorker)
+            console.log(currentScores.data.timelibcootAPI)
+            console.log(currentScores.data.timeconvertingWASMJS)
+            console.log(`Message from worker back to main thread took ${Date.now() - currentScores.data.messageSendTime} ms (get_r_factor_stats) - (${currentScores.data.messageId.slice(0, 5)})`)
 
             const newToastContents =    <Toast.Body style={{width: '100%'}}>
                                             {props.preferences.defaultUpdatingScores.includes('Rfactor') && 
@@ -177,7 +191,7 @@ export const MoorhenWebMG = forwardRef((props, glRef) => {
             }
         } 
 
-    }, [props.commandCentre, connectedMolNo, scores, props.preferences.defaultUpdatingScores])
+    }, [props.commandCentre, connectedMolNo, scores, props.preferences.defaultUpdatingScores, glRef, props.maps])
 
     const handleDisconnectMaps = () => {
         scores.current = {}
@@ -294,9 +308,9 @@ export const MoorhenWebMG = forwardRef((props, glRef) => {
     }, [handleConnectMaps]);
 
     useEffect(() => {
-        document.addEventListener("mapUpdate", handleScoreUpdates);
+        document.addEventListener("scoresUpdate", handleScoreUpdates);
         return () => {
-            document.removeEventListener("mapUpdate", handleScoreUpdates);
+            document.removeEventListener("scoresUpdate", handleScoreUpdates);
         };
 
     }, [handleScoreUpdates]);
@@ -435,11 +449,14 @@ export const MoorhenWebMG = forwardRef((props, glRef) => {
                     drawMissingLoops={props.drawMissingLoops}
                     drawInteractions={props.drawInteractions} />
 
-                {showContextMenu && !props.viewOnly &&
+                {showContextMenu &&
                 <MoorhenContextMenu 
-                    urlPrefix={props.urlPrefix}
                     glRef={glRef}
+                    viewOnly={props.viewOnly}
+                    urlPrefix={props.urlPrefix}
                     commandCentre={props.commandCentre}
+                    backgroundColor={props.backgroundColor}
+                    setBackgroundColor={props.setBackgroundColor}
                     isDark={props.isDark}
                     timeCapsuleRef={props.timeCapsuleRef}
                     molecules={props.molecules}
